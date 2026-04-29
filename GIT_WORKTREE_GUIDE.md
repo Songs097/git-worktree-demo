@@ -1,17 +1,17 @@
 ﻿# Vibe Coding 下的 Git Worktree 
 
-> 在 AI 辅助开发背景下，如何用 Git Worktree 真正提升团队交付效率
+> 在 AI 辅助开发背景下，如何用 Git Worktree 提升效率
 
 ---
 
 ## 痛点
 
-用 AI 高速推进一个功能时，代码写到一半，忽然来了一个 Hotfix 需求。
+用 AI 推进一个功能时，代码写到一半，忽然来了一个 Hotfix 需求。
 
-然后你不得不：
+然后你通常会使用git-stash暂时存储更改: 
 
 ```bash
-git stash save "WIP: new dashboard"
+git stash 
 git checkout develop
 git checkout -b hotfix/login-bug
 # ... 修复 ...
@@ -20,9 +20,11 @@ git checkout feature/new-dashboard
 git stash pop
 ```
 
-每次切换，AI 对话的上下文要重新建立，dev server 要重启，构建缓存失效。原本高速运转的开发节奏，就这样被打断了。
+每次切换，原本的开发节奏，就这样被打断了。
 
 这就是 Vibe Coding 场景下，传统分支管理方式的核心问题：**AI 让你更频繁地需要切换任务，但切换本身的成本并没有降低。**
+
+如果你的工作区已经非常混乱（到处都是新增、移动和删除的文件，以及其他零碎的文件），你不想冒险破坏任何现有内容时怎么做?
 
 ---
 
@@ -121,6 +123,11 @@ git worktree prune                         # 清理无效引用
 
 ---
 
+## 在 IDE 插件里git worktree的使用
+
+
+---
+
 ## 实战场景
 
 ### 场景一：Hotfix 不打断功能开发
@@ -160,12 +167,12 @@ git status  # 还是 feature/new-dashboard，所有改动都在
 
 ```bash
 # 主工作树继续开发功能
-# 另开一个 worktree 专门用于 review
+
+# 另开一个 worktree 专门用于 review 远程分支"feature/payment"
 git worktree add ../wt-review-payment feature/payment
 
-cd ../wt-review-payment
-npm install
-npm run dev  # 独立启动，不干扰你的功能开发端口
+# 也可以只review某个历史提交的代码
+git worktree add --detach ../wt-review-payment abcdef1
 
 # review 完成后
 git worktree remove ../wt-review-payment
@@ -201,35 +208,34 @@ cd ../wt-v2.0 && git commit -am "Add user profile (v2.0)"
 
 ---
 
-### 场景四：AI 驱动的方案 A/B 实验
+### 场景四：AI 驱动的方案实验
 
-**背景**：有一个性能优化方向，不确定哪种方案更好，想让 AI 分别实现两套然后对比。
+**背景**：有一个前端美化需求，不确定哪种方案更好，想让多种大模型分别实现然后对比。
 
 ```bash
-# 开两个实验性 worktree
-git worktree add -b spike/search-v1 ../wt-spike-search-v1 main
-git worktree add -b spike/search-v2 ../wt-spike-search-v2 main
+# 开N个实验性 worktree
+git worktree add -b feat/beauty-v1 ../wt-beauty-v1 main
+git worktree add -b feat/beauty-v2 ../wt-beauty-v2 main
+git worktree add -b feat/beauty-v3 ../wt-beauty-v3 main
 
-# 在 wt-spike-search-v1 窗口里让 AI 实现方案 A
-# 在 wt-spike-search-v2 窗口里让 AI 实现方案 B
+# 在 wt-spike-search-v1 窗口里让 GPT    实现方案 A
+# 在 wt-spike-search-v2 窗口里让 Gemini 实现方案 B
+# 在 wt-spike-search-v3 窗口里让 Claude 实现方案 C
 
-# 分别跑性能测试
-cd ../wt-spike-search-v1 && npm run benchmark  # 150ms
-cd ../wt-spike-search-v2 && npm run benchmark  # 120ms
+# 分别跑前端页面查看效果
 
-# 选方案 B，废弃方案 A
+# 选方案 A，废弃方案 B和C
 cd ~/project
-git merge spike/search-v2
-git worktree remove ../wt-spike-search-v1
-git worktree remove ../wt-spike-search-v2
+git merge feat/beauty-v1
+git worktree remove ../wt-beauty-v2
+git worktree remove ../wt-beauty-v3
 ```
 
-两个 worktree 可并行实验并直接对比结果；失败方案删目录即可，主仓库不受影响。
+N个 worktree 可并行实验并直接对比结果；失败方案删目录即可，主仓库不受影响。
+
+同理, 也可以用于多个方案的性能优化等需求
 
 ---
-
-
-
 
 ## 团队落地
 
@@ -246,25 +252,15 @@ git worktree remove ../wt-spike-search-v2
 
 - 不要在多个 worktree 里操作同一个分支（Git 不允许，也没有必要）
 - 不要长期积压无人认领的 worktree，占空间也容易混淆
-- 多个 worktree 启动 dev server 时记得配不同端口，避免冲突
 - 使用 pnpm 的团队可以配置共享 store，降低重复安装成本：
 
-```bash
-pnpm config set store-dir ../.pnpm-store
-```
 
 ---
 
 ## 总结
 
-Git Worktree 不是“高级 Git 技巧”，而是 AI 协作开发时代的实用基础设施。
-
-它真正解决的不是"切分支更快"，而是：
+Git Worktree 真正解决的不是"切分支更快"，而是：
 
 - 让多个并行任务各自拥有稳定的工作现场
-- 让 AI 的上下文不在不同任务之间串台
 - 让 Hotfix、Review、功能开发、实验探索互不干扰地推进
-
-如果团队已经在用 AI 写代码，那么下一步值得标准化的不只是提示词，而是：
-
-**任务怎么切，目录怎么开，窗口怎么隔离，AI 怎么约束。**
+- 探索同一任务的多个可能性
